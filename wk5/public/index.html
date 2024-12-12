@@ -8,12 +8,15 @@
             background-color: gold;
         }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
     <script type="module">
         import { reactive, html } from 'https://esm.sh/@arrow-js/core'
         import dataStore from './data-store.mjs'
 
         window.onload = async () => { 
             const root = document.getElementById('root')
+            const viz = document.getElementById('viz')
             const store = dataStore.store
 
             const data = reactive({
@@ -22,11 +25,56 @@
                 recordCandidate: {
                     station: '',
                     level: 0
+                },
+                chart: {
+                    labels: [],
+                    dataSets: []
                 }
             })
 
             await store.getAll()
             data.recordList = store.data
+
+            const chart = new Chart(viz, {
+                type: 'line',
+                data: {
+                    labels: data.chart.labels,
+                    datasets: data.chart.dataSets
+                }
+            })
+
+			function drawChart() {
+				const dataSets = []
+				const labels = []
+				const existingStations = new Set()
+				for (let i = 0; i < data.recordList.length; i++) {
+						const record = data.recordList[i]
+						if (!existingStations.has(record.station)) {
+								existingStations.add(record.station)
+								dataSets.push({
+										label: record.station,
+										data: [record.level]
+								})
+						} else {
+								const index = dataSets.findIndex(e => e.label === record.station)
+								dataSets[index].data.push(record.level)
+						}
+				}
+				// get max length of dateset data
+				const maxLength = Math.max(...dataSets.map(e => e.data.length))
+				for (let i = 0; i < maxLength; i++) {
+					labels.push(`Record ${i}`)
+				}
+
+				data.chart.labels = labels
+				data.chart.dataSets = dataSets
+				chart.data.labels = data.chart.labels
+				chart.data.datasets = data.chart.dataSets
+				chart.update()
+			}
+
+
+            drawChart()
 
             const counterContainer = html`
                 <div>
@@ -53,6 +101,8 @@
             async function addItem () {
                 await store.addOne(data.recordCandidate)
                 data.recordList = store.data
+                drawChart()
+
             }
 
             const temperatureRecordForm = html`
@@ -78,6 +128,8 @@
     </script>
 </head>
 <body>
+    <h1>Chart</h1>
+    <canvas id="viz"></canvas>
     <div id="root" />
 </body>
 </html>
