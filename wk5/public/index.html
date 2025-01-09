@@ -1,64 +1,65 @@
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-    <style>
-        .temperature-item {
-            background-color: gold;
-        }
-    </style>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Document</title>
+	<style>
+		.temperature-item {
+				background-color: gold;
+		}
+	</style>
+	<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <script type="module">
-        import { reactive, html } from 'https://esm.sh/@arrow-js/core'
-        import dataStore from './data-store.mjs'
+	<script type="module">
+		import { reactive, html } from 'https://esm.sh/@arrow-js/core'
+		import dataStore from './data-store.mjs'
 
-        window.onload = async () => { 
-            const root = document.getElementById('root')
-            const viz = document.getElementById('viz')
-            const store = dataStore.store
+		window.onload = async () => { 
+			const root = document.getElementById('root')
+			const viz = document.getElementById('viz')
+			const store = dataStore.store
 
-            const data = reactive({
-                counter: 0,
-                recordList: [],
-                recordCandidate: {
-                    station: '',
-                    level: 0
-                },
-                chart: {
-                    labels: [],
-                    dataSets: []
-                }
-            })
+			const data = reactive({
+				counter: 0,
+				recordList: [],
+				selected: -1,
+				recordCandidate: {
+					station: '',
+					level: 0
+				},
+				chart: {
+					labels: [],
+					dataSets: []
+				}
+			})
 
-            await store.getAll()
-            data.recordList = store.data
+			await store.getAll()
+			data.recordList = store.data
 
-            const chart = new Chart(viz, {
-                type: 'line',
-                data: {
-                    labels: data.chart.labels,
-                    datasets: data.chart.dataSets
-                }
-            })
+			const chart = new Chart(viz, {
+				type: 'line',
+				data: {
+					labels: data.chart.labels,
+					datasets: data.chart.dataSets
+				}
+			})
 
 			function drawChart() {
 				const dataSets = []
 				const labels = []
 				const existingStations = new Set()
 				for (let i = 0; i < data.recordList.length; i++) {
-						const record = data.recordList[i]
-						if (!existingStations.has(record.station)) {
-								existingStations.add(record.station)
-								dataSets.push({
-										label: record.station,
-										data: [record.level]
-								})
-						} else {
-								const index = dataSets.findIndex(e => e.label === record.station)
-								dataSets[index].data.push(record.level)
-						}
+					const record = data.recordList[i]
+					if (!existingStations.has(record.station)) {
+						existingStations.add(record.station)
+						dataSets.push({
+							label: record.station,
+							data: [record.level]
+						})
+					} else {
+						const index = dataSets.findIndex(e => e.label === record.station)
+						dataSets[index].data.push(record.level)
+					}
 				}
 				// get max length of dateset data
 				const maxLength = Math.max(...dataSets.map(e => e.data.length))
@@ -74,58 +75,95 @@
 			}
 
 
-            drawChart()
+			drawChart()
 
-            const counterContainer = html`
-                <div>
-                    <div>
-                        ${() => data.counter}
-                    </div>
-                    <div>
-                        <input type=button value=increment @click="${() => data.counter++}" />
-                    </div>
-                <div>
-            `
+			const counterContainer = html`
+				<div>
+					<div>
+						${() => data.counter}
+					</div>
+					<div>
+						<input type=button value=increment @click="${() => data.counter++}" />
+					</div>
+				<div>
+			`
 
-            const temperatureRecords = html`
-                <h1>List of records</h1>
-                ${() => data.recordList.map(e => {
-                    return html`
-                        <div class="temperature-item">
-                            For station ${e.station} level ${e.level}
-                        </div>
-                    `
-                })}
-            `
+		const temperatureRecords = html`
+			<h1>List of records</h1>
+			${() => data.recordList.map(e => {
+				if (e.id === data.selected) {
+					return html`
+						<div>
+							<input type="text" placeholder="station" @input="${(evt) => {
+								data.recordCandidate.station = evt.target.value
+							}}" value="${() => data.recordCandidate.station}" />
+							<input type="text" placeholder="level" @input="${(evt) => {
+								data.recordCandidate.level = evt.target.value
+							}}" value="${() => data.recordCandidate.level}"/>
+							<input type="button" value="save" @click="${(evt) => saveItem(e.id)}" />
+								<input type="button" value="cancel" @click="${() => {
+									data.selected = -1
+								}}"/>
+						</div>
+					`
+				} else {
+					return html`
+						<div class="temperature-item">
+								For station ${e.station} level ${e.level}
+								<input type="button" value="delete" @click="${() => {
+									deleteItem(e.id)
+								}}" />
+								<input type="button" value="edit" @click="${() => {
+									data.selected = e.id
+									data.recordCandidate.station = e.station
+									data.recordCandidate.level = e.level
+								}}"/>
+						</div>
+					`
+				}
+			})}
+		`
 
-            async function addItem () {
-                await store.addOne(data.recordCandidate)
-                data.recordList = store.data
-                drawChart()
+		async function addItem () {
+			await store.addOne(data.recordCandidate)
+			data.recordList = store.data
+			drawChart()
+		}
 
-            }
+		async function deleteItem (id) {
+			await store.deleteOne(id)
+			data.recordList = store.data
+			drawChart()
+		}
 
-            const temperatureRecordForm = html`
-                <div>
-                    <input type="text" placeholder="station" @input="${(evt) => {
-                        data.recordCandidate.station = evt.target.value
-                    }}" />
-                    <input type="text" placeholder="level" @input="${(evt) => {
-                        data.recordCandidate.level = evt.target.value
-                    }}" />
-                    <input type="button" value="add" @click="${(evt) => addItem()}" />
-                </div>
-            `
+		async function saveItem (id) {
+			await store.saveOne(id, data.recordCandidate)
+			data.recordList = store.data
+			data.selected = -1
+			drawChart()
+		}
 
-            const ui = html`
-                ${counterContainer}
-                ${temperatureRecords}
-                ${temperatureRecordForm}
-            `
+		const temperatureRecordForm = html`
+			<div>
+					<input type="text" placeholder="station" @input="${(evt) => {
+							data.recordCandidate.station = evt.target.value
+					}}" />
+					<input type="text" placeholder="level" @input="${(evt) => {
+							data.recordCandidate.level = evt.target.value
+					}}" />
+					<input type="button" value="add" @click="${(evt) => addItem()}" />
+			</div>
+		`
 
-            ui(root)
-        }
-    </script>
+		const ui = html`
+				${counterContainer}
+				${temperatureRecords}
+				${temperatureRecordForm}
+		`
+
+		ui(root)
+	}
+	</script>
 </head>
 <body>
     <h1>Chart</h1>
